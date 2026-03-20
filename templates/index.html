@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Consulta PBdoc</title>
+    <style>
+        @keyframes highlightUpdate {
+            0% { background-color: #d1e7dd; } /* Verde claro do Bootstrap */
+            100% { background-color: transparent; }
+        }
+
+        .linha-atualizada {
+            animation: highlightUpdate 2s ease-out;
+        }
+    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.29/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+
+<body class="bg-light">
+    <div class="container mt-4">
+        <div class="d-flex justify-content-end mb-2">
+            <a href="/config_pbdoc" class="btn btn-outline-primary btn-sm me-2">
+                Config PBdoc
+            </a>
+            <a href="/sair" class="btn btn-outline-danger btn-sm">
+                Sair
+            </a>
+        </div>
+        <div class="text-center mb-4">
+            <img src="{{ url_for('static', filename='LogoPBSAUDE.png') }}" style="max-height:90px">
+            <h3>
+                <strong>Consulta PBdoc</strong>
+            </h3>
+        </div>
+        <div class="card shadow">
+            <div class="card-body">
+                <label>Unidade</label>
+                <select id="unidade" class="form-select mb-3" onchange="trocarUnidade()">
+                    <option value="SEDE">SEDE</option>
+                    <option value="HMDJMP">HMDJMP</option>
+                    <option value="HSGER">HSGER</option>
+                    <option value="HRG">HRG</option>
+                    <option value="CHRDJC">CHRDJC</option>
+                    <option value="HETDLGF">HETDLGF</option>
+                </select>
+                    <label>Filtrar setores</label>
+                    <select id="filtroSetor" class="form-select mb-3" multiple size="6" onchange="filtrarTabela()">
+                </select>
+            </div>
+        </div>
+
+        <div class="card shadow mt-4">
+            <div id="liveAlertPlaceholder"></div>
+            <div class="card-body">
+                <table class="table table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>PBdoc</th>
+                            <th>Assunto</th>
+                            <th>Setor</th>
+                            <th>Status</th>
+                            <th>Tempo</th>
+                            <th>Verificação</th>
+                            <th>Ações</th> </tr>
+                    </thead>
+                    <tbody id="tabelaResultados">
+                        {% for d in ultimos %}
+                        <tr>
+                            <td class="col-pbdoc">{{d[0]}}</td>
+                            <td class="col-assunto">{{d[1]}}</td>
+                            <td class="col-setor setor">{{d[2]}}</td> 
+                            <td class="col-status">{{d[3]}}</td>
+                            <td class="col-tempo">{{d[4]}}</td>
+                            <td class="col-verificacao">{{d[5]}}</td> <td>
+                                <div class="btn-group">
+                                    <a href="{{d[6]}}" target="_blank" class="btn btn-primary btn-sm">Abrir</a>
+                                    <button class="btn btn-warning btn-sm" onclick="abrirModalEdicao(this)">Editar</button>
+                                    <button class="btn btn-danger btn-sm" onclick="prepararExclusao(this)">Excluir</button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="row align-items-center">
+                    <div class="col-sm-2">
+                        <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#modalProcesso">Adicionar Processo</button>
+                    </div>
+                    <div class="col-sm-2">
+                        <button class="btn btn-success w-100" onclick="processar_e_atualizar_unidade(this)">
+                            Consultar Processos
+                        </button>
+                    </div>
+                    <div class="col-sm-2 ms-auto">
+                        <button class="btn btn-success w-100" onclick="exportarExcel()">Exportar XLSX</button>
+                    </div>
+                    <div class="col-sm-2">
+                        <button class="btn btn-danger w-100" onclick="exportarPDF()">Exportar PDF</button>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="modalProcesso" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="modalLabel">Novo Processo</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="inputProcesso" class="form-label">Digite o número do processo:</label>
+                                    <input type="text" id="numeroProcesso" class="form-control" placeholder="0000000-00.0000.0.00.0000">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="adicionarProcesso()">Confirmar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="modalEditar" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header bg-warning">
+                                <h5 class="modal-title">Editar Dados do Processo</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" id="editPbdocOriginal">
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">PBdoc (Sigla)</label>
+                                    <input type="text" id="editPbdoc" class="form-control" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Assunto</label>
+                                    <textarea id="editAssunto" class="form-control" rows="4" style="resize: vertical;"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Setor</label>
+                                    <input type="text" id="editSetor" class="form-control">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Tempo</label>
+                                    <input type="text" id="editTempo" class="form-control">
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" class="btn btn-primary" onclick="salvarEdicao()">Salvar Alterações</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="modalExcluir" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Confirmar Exclusão</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <p>Você está prestes a excluir o processo:</p>
+                                <h4 id="excluirSiglaTexto" class="text-danger"></h4>
+                                <p class="text-muted small">Esta ação não pode ser desfeita na planilha.</p>
+                                
+                                <input type="hidden" id="excluirSiglaId">
+                            </div>
+                            <div class="modal-footer justify-content-center">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="button" id="btnConfirmarExclusao" class="btn btn-danger" onclick="executarExclusao()">Sim, Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+
+        // Função para filtrar a tabela com base nas seleções múltiplas
+        function filtrarTabela() {
+            // 1. Pega todas as opções que foram clicadas/selecionadas no filtro
+            const selectFiltro = document.getElementById("filtroSetor");
+            const opcoesSelecionadas = Array.from(selectFiltro.selectedOptions).map(option => option.value);
+
+            // 2. Seleciona todas as linhas da tabela
+            const linhas = document.querySelectorAll("#tabelaResultados tr");
+
+            linhas.forEach(linha => {
+                const colunaSetor = linha.querySelector(".setor");
+                
+                if (colunaSetor) {
+                    const nomeSetor = colunaSetor.innerText.trim();
+
+                    // 3. Se não houver nenhum setor selecionado OU se o setor da linha estiver entre os selecionados: exibe.
+                    if (opcoesSelecionadas.length === 0 || opcoesSelecionadas.includes(nomeSetor)) {
+                        linha.style.display = ""; // Mostra a linha
+                    } else {
+                        linha.style.display = "none"; // Oculta a linha
+                    }
+                }
+            });
+        }
+
+        // Como o seu código também tenta chamar 'atualizarFiltro()' em algumas partes (como no DOMContentLoaded),
+        // vamos criar um atalho para evitar erros no console:
+        function atualizarFiltro() {
+            filtrarTabela();
+        }
+
+        // 1. Abre o modal e preenche os dados do processo selecionado
+        function prepararExclusao(botao) {
+            const linha = botao.closest('tr');
+            const sigla = linha.querySelector('.col-pbdoc').innerText.trim();
+
+            // Preenche o texto e o ID oculto no modal
+            document.getElementById('excluirSiglaTexto').innerText = sigla;
+            document.getElementById('excluirSiglaId').value = sigla;
+
+            // Abre o modal de confirmação
+            const meuModal = new bootstrap.Modal(document.getElementById('modalExcluir'));
+            meuModal.show();
+        }
+
+        // 2. Faz a chamada ao Flask para deletar na planilha
+        function executarExclusao() {
+            const sigla = document.getElementById('excluirSiglaId').value;
+            const unidade = document.getElementById('unidade').value;
+            const btn = document.getElementById('btnConfirmarExclusao');
+
+            // Feedback de carregamento no botão
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Excluindo...';
+
+            fetch('/excluir_processo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sigla: sigla, unidade: unidade })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    // Fecha o modal
+                    bootstrap.Modal.getInstance(document.getElementById('modalExcluir')).hide();
+                    
+                    // Alerta de sucesso e reload
+                    mostrarAlerta("Processo removido com sucesso!", "success");
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    mostrarAlerta("Erro: " + data.message, "danger");
+                    btn.disabled = false;
+                    btn.innerHTML = "Sim, Excluir";
+                }
+            })
+            .catch(err => {
+                mostrarAlerta("Erro de conexão.", "danger");
+                btn.disabled = false;
+                btn.innerHTML = "Sim, Excluir";
+            });
+        }
+
+        // 1. Preenche o modal com os dados da linha clicada
+        function abrirModalEdicao(botao) {
+            // Acha a linha (tr) mais próxima do botão clicado
+            const linha = botao.closest('tr');
+            
+            // Captura os textos das colunas pelas classes que criamos
+            const pbdoc = linha.querySelector('.col-pbdoc').innerText;
+            const assunto = linha.querySelector('.col-assunto').innerText;
+            const setor = linha.querySelector('.col-setor').innerText;
+            const tempo = linha.querySelector('.col-tempo').innerText.trim(); // Captura o tempo
+
+            // Preenche os inputs do modal
+            document.getElementById('editPbdocOriginal').value = pbdoc;
+            document.getElementById('editPbdoc').value = pbdoc;
+            document.getElementById('editAssunto').value = assunto;
+            document.getElementById('editSetor').value = setor;
+            document.getElementById('editTempo').value = tempo; // Preenche o campo novo
+
+            // Abre o modal
+            var m = new bootstrap.Modal(document.getElementById('modalEditar'));
+            m.show();
+        }
+
+        // Função para gerar o alerta do Bootstrap dinamicamente
+        function mostrarAlerta(mensagem, tipo) {
+            const alertPlaceholder = document.getElementById('liveAlertPlaceholder');
+            const wrapper = document.createElement('div');
+            
+            wrapper.innerHTML = [
+                `<div class="alert alert-${tipo} alert-dismissible fade show" role="alert">`,
+                `   <div><i class="bi bi-check-circle-fill me-2"></i> ${mensagem}</div>`,
+                '   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
+                '</div>'
+            ].join('');
+
+            alertPlaceholder.append(wrapper);
+
+            // Opcional: Auto-remover o alerta após 5 segundos se o usuário não fechar
+            setTimeout(() => {
+                const alert = bootstrap.Alert.getOrCreateInstance(wrapper.firstElementChild);
+                if (alert) alert.close();
+            }, 5000);
+        }
+
+        // Atualize a função de salvar edicao
+        function salvarEdicao() {
+            // 1. Referência ao botão e aos campos
+            const btnSalvar = document.querySelector("#modalEditar .btn-primary");
+            const unidadeAtual = document.getElementById('unidade').value;
+            
+            const dados = {
+                sigla_original: document.getElementById('editPbdocOriginal').value,
+                assunto: document.getElementById('editAssunto').value,
+                setor: document.getElementById('editSetor').value,
+                tempo: document.getElementById('editTempo').value,
+                unidade: unidadeAtual
+            };
+
+            // 2. TRAVAR O BOTÃO E ADICIONAR FEEDBACK
+            const textoOriginal = btnSalvar.innerHTML; // Guarda o texto "Salvar Alterações"
+            btnSalvar.disabled = true;
+            btnSalvar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Atualizando...';
+
+            // 3. ENVIAR PARA O FLASK
+            fetch('/editar_processo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    // Fecha o modal
+                    const modalElt = document.getElementById('modalEditar');
+                    const modal = bootstrap.Modal.getInstance(modalElt);
+                    modal.hide();
+
+                    // Alerta de sucesso
+                    mostrarAlerta("Processo atualizado com sucesso!", "success");
+
+                    // Recarrega após 2 segundos
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    // SE DER ERRO: Destrava o botão para o usuário tentar corrigir
+                    mostrarAlerta("Erro: " + data.message, "danger");
+                    btnSalvar.disabled = false;
+                    btnSalvar.innerHTML = textoOriginal;
+                }
+            })
+            .catch(err => {
+                // SE DER ERRO DE REDE: Destrava o botão
+                mostrarAlerta("Erro de conexão com o servidor.", "danger");
+                btnSalvar.disabled = false;
+                btnSalvar.innerHTML = textoOriginal;
+            });
+        }
+
+        function adicionarProcesso() {
+            const inputProcesso = document.getElementById('numeroProcesso');
+            const processo = inputProcesso.value.trim();
+            const unidade = document.getElementById('unidade').value; // Pega a unidade atual
+            const btn = document.querySelector("#modalProcesso .btn-primary");
+            const textoOriginal = btn.innerHTML;
+
+            if (!processo) {
+                mostrarAlerta("Por favor, digite o número do processo.", "warning");
+                return;
+            }
+
+            // 1. Feedback visual no botão
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gravando...';
+
+            fetch('/adicionar_processo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    processo: processo, 
+                    unidade: unidade 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    // 2. Fechar o modal de inserção
+                    const modalElt = document.getElementById('modalProcesso');
+                    const modal = bootstrap.Modal.getInstance(modalElt);
+                    modal.hide();
+
+                    // 3. Limpar o campo para a próxima vez
+                    inputProcesso.value = "";
+
+                    // 4. Mostrar o alerta de sucesso e recarregar
+                    mostrarAlerta("Processo adicionado com sucesso!", "success");
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    mostrarAlerta("Erro: " + data.message, "danger");
+                    btn.disabled = false;
+                    btn.innerHTML = textoOriginal;
+                }
+            })
+            .catch(err => {
+                mostrarAlerta("Erro de conexão com o servidor.", "danger");
+                btn.disabled = false;
+                btn.innerHTML = textoOriginal;
+            });
+        }
+
+
+        async function processar_e_atualizar_unidade(btn) { // Recebe o btn diretamente
+            const unidade = document.getElementById('unidade').value;
+            
+            // Se o btn não foi passado, tenta pegar pelo evento (fallback)
+            const elementoBtn = btn || (event ? event.target : null);
+            if (!elementoBtn) return;
+
+            const textoOriginal = elementoBtn.innerHTML;
+
+            // Trava o botão e mostra carregamento
+            elementoBtn.disabled = true;
+            elementoBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Conectando...';
+
+            try {
+                const response = await fetch('/atualizar_unidade_stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unidade: unidade })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = ''; 
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    let linhas = buffer.split('\n');
+                    
+                    // Guarda a última parte (incompleta) de volta no buffer
+                    buffer = linhas.pop();
+
+                    for (const linha of linhas) { // CORRIGIDO: de -> of
+                        const linhaLimpa = linha.trim();
+                        if (!linhaLimpa) continue;
+                        
+                        try {
+                            const data = JSON.parse(linhaLimpa);
+
+                            if (data.status === "parcial") {
+                                atualizarLinhaNaTabela(data.dados);
+                                // Atualiza o contador no botão
+                                elementoBtn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${data.index + 1}/${data.total}`;
+                            } 
+                            
+                            if (data.status === "concluido") {
+                                mostrarAlerta(data.message, "success");
+                                elementoBtn.innerHTML = textoOriginal;
+                                elementoBtn.disabled = false;
+                            }
+
+                            if (data.status === "erro") {
+                                mostrarAlerta("Erro: " + data.message, "danger");
+                                elementoBtn.disabled = false;
+                                elementoBtn.innerHTML = textoOriginal;
+                            }
+                        } catch (e) {
+                            console.error("Erro ao processar linha JSON:", e, linhaLimpa);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Erro no Fetch Stream:", err);
+                mostrarAlerta("Erro de conexão com o servidor.", "danger");
+                elementoBtn.disabled = false;
+                elementoBtn.innerHTML = textoOriginal;
+            }
+        }
+
+        function atualizarLinhaNaTabela(dados) {
+            // Desestrutura o array que veio do Python
+            const [sigla, assunto, setor, status, tempo, verificacao] = dados;
+            
+            // 1. Localiza todas as linhas da tabela
+            const linhas = document.querySelectorAll("#tabelaResultados tr");
+            
+            linhas.forEach(tr => {
+                // 2. Busca a célula da sigla
+                const tdSigla = tr.querySelector(".col-pbdoc");
+                
+                if (tdSigla && tdSigla.innerText.trim() === sigla) {
+                    // 3. Injeta os novos dados nas colunas específicas
+                    tr.querySelector(".col-assunto").innerText = assunto;
+                    tr.querySelector(".col-setor").innerText = setor;
+                    tr.querySelector(".col-status").innerText = status;
+                    tr.querySelector(".col-tempo").innerText = tempo;
+                    tr.querySelector(".col-verificacao").innerText = verificacao;
+
+                    // 4. Efeito Visual: Piscar a linha em verde para indicar atualização
+                    tr.style.transition = "background-color 0.5s";
+                    tr.style.backgroundColor = "#d1e7dd"; // Verde claro (success)
+                    
+                    setTimeout(() => {
+                        tr.style.backgroundColor = ""; // Volta ao normal
+                    }, 2000);
+                }
+            });
+        }
+
+
+        function carregarFiltroSetores() {
+            const select = document.getElementById("filtroSetor");
+            const linhas = document.querySelectorAll("#tabelaResultados tr");
+            const setoresUnicos = new Set(); // Set não permite duplicatas
+
+            // 1. Limpa o select atual (exceto se você quiser uma opção "Todos")
+            select.innerHTML = "";
+
+            // 2. Coleta os setores da coluna que tem a classe ".setor"
+            linhas.forEach(tr => {
+                const colunaSetor = tr.querySelector(".setor");
+                if (colunaSetor) {
+                    const nomeSetor = colunaSetor.innerText.trim();
+                    if (nomeSetor && nomeSetor !== "-") { // Ignora vazios ou traços
+                        setoresUnicos.add(nomeSetor);
+                    }
+                }
+            });
+
+            // 3. Transforma o Set em Array, ordena de A-Z e cria as <option>
+            Array.from(setoresUnicos).sort().forEach(setor => {
+                const option = document.createElement("option");
+                option.value = setor;
+                option.text = setor;
+                select.appendChild(option);
+            });
+        }
+
+        // Executar a função assim que a página carregar
+        window.onload = function() {
+            carregarFiltroSetores();
+        };
+
+        let params = new URLSearchParams(window.location.search)
+
+        let unidadeAtual = params.get("unidade") || "SEDE"
+
+        document.getElementById("unidade").value = unidadeAtual
+
+        function trocarUnidade() {
+
+            let unidade = document.getElementById("unidade").value
+
+            window.location = "/consulta?unidade=" + unidade
+
+        }
+
+        document.getElementById("formConsulta")
+
+            .addEventListener(
+
+                "submit",
+
+                async function (e) {
+
+                    e.preventDefault()
+
+                    document.getElementById("btnConsultar").disabled = true
+
+                    document.getElementById("loading").style.display = "block"
+
+                    document.getElementById("tabelaResultados").innerHTML = ""
+
+                    let processos = document.getElementById("processos")
+
+                        .value.split("\n")
+
+                        .map(p => p.trim())
+
+                        .filter(p => p)
+
+                    for (let processo of processos) {
+
+                        let formData = new FormData()
+
+                        formData.append("processos", processo)
+
+                        let response = await fetch(
+
+                            "/consultar",
+
+                            {
+
+                                method: "POST",
+
+                                body: formData
+
+                            }
+
+                        )
+
+                        let dados = await response.json()
+
+                        dados.forEach(d => {
+
+                            let linha = `
+
+<tr>
+
+<td>${d[0]}</td>
+<td>${d[1]}</td>
+<td class="setor">${d[2]}</td>
+<td>${d[3]}</td>
+<td>${d[4]}</td>
+<td>${d[5]}</td>
+
+<td>
+
+<a href="${d[6]}"
+target="_blank"
+class="btn btn-primary btn-sm">
+
+Abrir
+
+</a>
+
+</td>
+
+</tr>
+`
+
+                            document.getElementById("tabelaResultados")
+
+                                .insertAdjacentHTML("beforeend", linha)
+
+                        })
+
+                    }
+
+                    document.getElementById("btnConsultar").disabled = false
+
+                    document.getElementById("loading").style.display = "none"
+
+                    atualizarFiltro()
+
+                }
+
+            )
+
+
+        function pegarDadosVisiveis() {
+
+            let dados = []
+
+            document.querySelectorAll("#tabelaResultados tr")
+
+                .forEach(tr => {
+
+                    if (tr.style.display != "none") {
+
+                        let td = tr.querySelectorAll("td")
+
+                        dados.push([
+
+                            td[0].innerText,
+                            td[1].innerText,
+                            td[2].innerText,
+                            td[3].innerText,
+                            td[4].innerText,
+                            td[5].innerText,
+                            td[6].querySelector("a").href
+
+                        ])
+
+                    }
+
+                })
+
+            return dados
+
+        }
+
+
+
+        async function atualizarPlanilha() {
+
+            let unidade = document.getElementById("unidade").value
+
+            let dados = pegarDadosVisiveis()
+
+            await fetch(
+
+                "/atualizar_planilha",
+
+                {
+
+                    method: "POST",
+
+                    headers: {
+
+                        "Content-Type": "application/json"
+
+                    },
+
+                    body: JSON.stringify({
+
+                        dados: dados,
+
+                        aba: unidade
+
+                    })
+
+                }
+
+            )
+
+            alert("Planilha atualizada")
+
+        }
+
+
+
+        function exportarExcel() {
+
+            let dados = pegarDadosVisiveis()
+
+            let ws = XLSX.utils.aoa_to_sheet(dados)
+
+            let wb = XLSX.utils.book_new()
+
+            XLSX.utils.book_append_sheet(
+
+                wb,
+
+                ws,
+
+                "Processos"
+
+            )
+
+            XLSX.writeFile(
+
+                wb,
+
+                "processos.xlsx"
+
+            )
+
+        }
+
+
+
+        function exportarPDF() {
+
+            let dados = pegarDadosVisiveis()
+
+            const { jsPDF } = window.jspdf
+
+            let doc = new jsPDF()
+
+            doc.autoTable({
+
+                head: [["PBdoc", "Assunto", "Setor", "Status", "Tempo", "Verificação"]],
+
+                body: dados.map(d => [
+
+                    d[0],
+                    d[1],
+                    d[2],
+                    d[3],
+                    d[4],
+                    d[5]
+
+                ])
+
+            })
+
+            doc.save("processos.pdf")
+
+        }
+
+
+
+        document.addEventListener(
+
+            "DOMContentLoaded",
+
+            atualizarFiltro
+
+        )
+
+
+    </script>
+
+
+</body>
+
+</html>

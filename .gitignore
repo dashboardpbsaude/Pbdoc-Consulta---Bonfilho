@@ -1,0 +1,31 @@
+# Ambientes Virtuais
+venv/
+.venv/
+env/
+ENV/
+bin/
+lib/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Variáveis de Ambiente (SENSÍVEL)
+.env
+.flaskenv
+
+# Banco de Dados SQLite (se usar localmente)
+*.sqlite3
+*.db
+
+# IDEs e Editores
+.vscode/
+.idea/
+.DS_Store
+
+# Logs
+*.log
+
+# Credenciais do Google
+google_credentials.json
