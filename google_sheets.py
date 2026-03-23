@@ -1,7 +1,12 @@
 import gspread
-
+import os
+import json
 from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
 
+# Carrega as variáveis do arquivo .env para o seu computador
+# No Render, ele simplesmente ignora se o arquivo .env não existir
+load_dotenv()
 
 SCOPES=[
 "https://www.googleapis.com/auth/spreadsheets",
@@ -9,24 +14,60 @@ SCOPES=[
 ]
 
 
+# def conectar():
+#     CREDS=Credentials.from_service_account_file(
+#         "google_credentials.json",
+#         scopes=SCOPES
+
+#     )
+
+#     client=gspread.authorize(CREDS)
+
+#     return client.open_by_key(
+
+# "11EbVwUjQObbKxNYWY8nevfaDQzupOzHs2GZHZ27tLAk"
+
+# )
+
+
+import os
+import json
+import gspread
+from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
+
+# Carrega as variáveis do arquivo .env para o seu computador
+# No Render, ele simplesmente ignora se o arquivo .env não existir
+load_dotenv()
+
+# Defina seus escopos aqui (mantenha os que você já usava)
+SCOPES = [
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive'
+]
+
 def conectar():
+    # 1. Pega a string do JSON (agora o dotenv garante que ela estará aqui localmente)
+    creds_json_str = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    
+    if not creds_json_str:
+        raise ValueError("A variável de ambiente GOOGLE_CREDENTIALS_JSON não foi encontrada!")
 
-    CREDS=Credentials.from_service_account_file(
+    # 2. Transforma a string de texto em um dicionário Python
+    try:
+        creds_dict = json.loads(creds_json_str)
+    except json.JSONDecodeError:
+        raise ValueError("O conteúdo de GOOGLE_CREDENTIALS_JSON não é um JSON válido.")
 
-        "google_credentials.json",
-
+    # 3. Usa as credenciais
+    CREDS = Credentials.from_service_account_info(
+        creds_dict,
         scopes=SCOPES
-
     )
 
-    client=gspread.authorize(CREDS)
+    client = gspread.authorize(CREDS)
 
-    return client.open_by_key(
-
-"11EbVwUjQObbKxNYWY8nevfaDQzupOzHs2GZHZ27tLAk"
-
-)
-
+    return client.open_by_key("11EbVwUjQObbKxNYWY8nevfaDQzupOzHs2GZHZ27tLAk")
 
 def ler_planilha(aba="SEDE"):
 

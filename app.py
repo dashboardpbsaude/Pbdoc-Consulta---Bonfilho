@@ -58,7 +58,7 @@ def entrar():
             return redirect(url_for('index')) # ou 'consulta'
         else:
             print("AÇÃO: NÃO tem senha salva, indo para CONFIGURACAO.")
-            return redirect(url_for('configuracao')) 
+            return redirect(url_for('configuracao'))
             
     else:
         print("RESULTADO: E-mail NÃO ENCONTRADO. Voltando pro login.")
@@ -93,7 +93,6 @@ def index():
 def config_pbdoc():
 
     if "email" not in session:
-
         return redirect(url_for("login"))
 
     email = session["email"]
@@ -101,15 +100,10 @@ def config_pbdoc():
     dados = configuracoes_pbdoc.get(email, {})
 
     return render_template(
-
         "config_pbdoc.html",
-
         email=email,
-
         usuario_pbdoc=dados.get("usuario_pbdoc",""),
-
         senha_pbdoc=dados.get("senha_pbdoc","")
-
     )
 
 
@@ -119,11 +113,8 @@ def salvar_pbdoc():
     email = session["email"]
 
     configuracoes_pbdoc[email] = {
-
         "usuario_pbdoc":request.form.get("usuario_pbdoc"),
-
         "senha_pbdoc":request.form.get("senha_pbdoc")
-
     }
 
     return redirect(url_for("consulta"))
@@ -157,9 +148,7 @@ def consultar():
     resultados=[]
 
     for r in consultar_lista_stream(processos):
-
         resultados.append(r)
-
     ultimos_resultados = resultados
 
     return jsonify(resultados)
@@ -346,11 +335,8 @@ def excluir_processo():
 
 @app.route("/sair")
 def sair():
-
     session.clear()
-
     return redirect(url_for("login"))
-
 
 if __name__=="__main__":
 
