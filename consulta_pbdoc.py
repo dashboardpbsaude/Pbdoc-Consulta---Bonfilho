@@ -12,8 +12,8 @@ LOGIN_URL = os.environ['LOGIN_URL']
 
 PROCESSO_URL = os.environ['PROCESSO_URL']
 
-USUARIO = os.environ['USUARIO']
-SENHA = os.environ['SENHA']
+USUARIO = "03533335496"
+SENHA = "Seymour#9"
 
 # Coloque as duas variáveis dentro dos parênteses!
 # def criar_sessao(usuario_pbdoc, senha_pbdoc):
